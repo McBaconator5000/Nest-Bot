@@ -1,0 +1,19 @@
+{
+  "name": "bot",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "discord.js": "^11.2.1",
+    "goo.gl": "^0.1.4",
+    "google-auth-library": "^0.10.0",
+    "googleapis": "^20.1.0",
+    "ontime": "0.0.3",
+    "string-similarity": "^1.2.0"
+  }
+}
