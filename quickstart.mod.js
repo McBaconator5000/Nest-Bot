@@ -28,6 +28,7 @@ var keyPokes = []; //list of pokemon obj
 var keyNests = []; //list of nest obj
 var keyCount = []; //list of county obj 
 var listChan = []; //list of channel obj
+var allowedChan = [];
 
 var channelID = "";
 var mstHeader = "";
@@ -586,7 +587,7 @@ function clearList(channel){
 bot.on('message', (message) => {
   //message.react("🍤");
   if(message == "!refresh"){
-    if(message.member.hasPermission("CREATE_INSTANT_INVITE")){//only ppl with instant invite ability allowed to run code
+    if(autoconfirm(message.member.roles)){//only ppl with instant invite ability allowed to run code
       channelID = message.channel.id;
       
       authentication.authenticate().then((auth)=>{
@@ -825,7 +826,16 @@ bot.on('message', (message) => {
     //console.log(resp);
     //console.log("length = "+keyNests.length);
     if(resp != undefined && resp.isDup){
-      message.channel.send("There are several parks by that name, please be more specific");
+      var matches = keyNests.filter(n => n.nest === resp.nest);
+      var possibles = matches.map(n => n.nickname);
+      var options = " ";
+      for(i = 0; i < possibles.length; i++){
+        options = options + possibles[i] + ", ";
+      }
+      result = options.slice(0,options.length - 2);
+      message.channel.send("There are several parks by that name. Please re-enter your report using one of the following names" + result+".");
+
+      //message.channel.send("There are several parks by that name, please be more specific");
     }else if(resp != undefined){//nest exists, find it on biglist
       //fetch all data
       authentication.authenticate().then((auth)=>{//run this function to pull all data (will need to check against it)
@@ -1025,15 +1035,45 @@ function printEmbedPark(message){
   var num = keyNests.indexOf(resp);
   var link = bigList[num][getCol("google maps", false)];
   var poke = bigList[num][getCol("pokemon", false)];
-  if(poke == "???"){//check for if nest is discovered
-    message.channel.send(capFirst(resp.nest) + " is still undiscovered. Help find what is nesting there! Here's where it is: <" + link + ">");
-   }else{
-     var stars = bigList[num][getCol("rating", false)];
-     var dude = bigList[num][getCol("researcher", false)];
-     var conf = bigList[num][getCol("confirmed", false)];
-     var usure = conf == 'TRUE' ? "spawns" : "may spawn";
-    
-   }
+
+  var stars = bigList[num][getCol("rating", false)];
+  var dude = bigList[num][getCol("researcher", false)];
+  var conf = bigList[num][getCol("confirmed", false)];
+  var usure = conf == 'TRUE' ? "spawns" : "may spawn";
+
+  googl.expand(link)
+  .then(function (longUrl) {
+      //message.channel.send(longUrl);
+      //console.log("long url: "+longUrl);
+      if(longUrl.includes("@")){
+        mapInfoStr = longUrl.substring(longUrl.indexOf("@")+1, longUrl.indexOf("/", longUrl.indexOf("@")) - 1);//not all have "z" for zoom, some have m...? Not sure how to convert taht to z
+        //console.log("infostr: "+ mapInfoStr);
+        mapInfo = mapInfoStr.split(",");
+        zoom = mapInfo[2] > 20 ? 15 : Math.floor(mapInfo[2]);//for values larger than 20, set to 15. A decent zoom level. also use floor to avoid quarter zoom levels
+        mapImage = mapWrap(mapInfo[0], parseFloat(mapInfo[1]) + 0.0015, zoom); // add 0.0015 as most maps are slightly off center
+        var embed = {
+          //"description": "This park is nice",
+          "image": {
+            "url": mapImage
+          }
+        }
+      }
+      //console.log(embed);
+      if(poke == "???"){
+        preable = capFirst(resp.nest) + " is still undiscovered. Help find what is nesting there!"+
+        "\nHere's where it is: <" + link + ">";
+      }else{
+        preable = "**" + poke + "** "+ usure +" at " + capFirst(resp.nest) + " at a rate of " + stars + 
+        "\nIt is located at: <" + link + ">" +
+        "\nThis was found by " + dude;
+      }
+      console.log(embed);
+      message.channel.send(preable,{ embed });
+  })
+  .catch(function (err) {
+      console.error(err.message);
+  }); 
+   
 }
 function printPark(message){
   var num = keyNests.indexOf(resp);
@@ -1047,8 +1087,19 @@ function printPark(message){
     var conf = bigList[num][getCol("confirmed", false)];
     var usure = conf == 'TRUE' ? "spawns" : "may spawn";
     message.channel.send("**" + poke + "** "+ usure +" at " + capFirst(resp.nest) + " at a rate of " + stars + 
+    "\nIt is located at: <" + link + ">" +
     "\nThis was found by " + dude);
   }
+}
+
+function mapWrap(lat, long, zoom){
+  //outputs extremely long url 
+  //longImageUrl = "https://maps.googleapis.com/maps/api/staticmap?key="+config.googleMap+"&center="+lat+","+long+"&zoom="+zoom+"&format=png&maptype=roadmap&style=element:geometry%7Ccolor:0x212121&style=element:labels.icon%7Cvisibility:off&style=element:labels.text.fill%7Ccolor:0x757575&style=element:labels.text.stroke%7Ccolor:0x212121&style=feature:administrative%7Celement:geometry%7Ccolor:0x757575&style=feature:administrative.country%7Celement:labels.text.fill%7Ccolor:0x9e9e9e&style=feature:administrative.land_parcel%7Cvisibility:off&style=feature:administrative.locality%7Celement:labels.text.fill%7Ccolor:0xbdbdbd&style=feature:poi%7Celement:labels.text.fill%7Ccolor:0x757575&style=feature:poi.park%7Celement:geometry%7Ccolor:0x181818&style=feature:poi.park%7Celement:geometry.fill%7Ccolor:0x008000%7Cvisibility:on&style=feature:poi.park%7Celement:labels.text.fill%7Ccolor:0x616161&style=feature:poi.park%7Celement:labels.text.stroke%7Ccolor:0x1b1b1b&style=feature:road%7Celement:geometry.fill%7Ccolor:0x2c2c2c&style=feature:road%7Celement:labels.text.fill%7Ccolor:0x8a8a8a&style=feature:road.arterial%7Celement:geometry%7Ccolor:0x373737&style=feature:road.highway%7Celement:geometry%7Ccolor:0x3c3c3c&style=feature:road.highway.controlled_access%7Celement:geometry%7Ccolor:0x4e4e4e&style=feature:road.local%7Celement:labels.text.fill%7Ccolor:0x616161&style=feature:transit%7Celement:labels.text.fill%7Ccolor:0x757575&style=feature:water%7Celement:geometry%7Ccolor:0x000000&style=feature:water%7Celement:labels.text.fill%7Ccolor:0x3d3d3d&size=480x360";
+  //put api key in config
+  //console.log(lat, long);
+  longImageUrl = "https://www.mapquestapi.com/staticmap/v5/map?key=2OTyBwpvuVbQfAZf7oY0BSFhKcMDPsHa&center="+lat+","+long+"&zoom="+zoom+"&size=600,400@2x"
+  //console.log(longImageUrl);
+  return longImageUrl;
 }
 
 function autoconfirm(memRoles){//small function to go through list of roles that count as auto-confirming roles
